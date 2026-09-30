@@ -26,3 +26,5 @@ PYTHONPATH=src python -m mixformer.train data/train.jsonl --output runs/ml1m
 这个版本用于验证模型和数据流程。它没有复现工业规模训练设置，也没有把旧实验的数值当作当前代码的结果。训练输出包含损失和权重，正式评估需要在独立测试集上另行执行。
 
 `results/historical_ablation.json` 仅保存先前实验的指标摘要。该文件中的指标尚未用本仓库代码重新得到。
+
+`analysis/` 保存两份独立编写的旧实验统计脚本。它们读取既有实验输出，其中 `summarize_evidence.py` 需要 NumPy。
