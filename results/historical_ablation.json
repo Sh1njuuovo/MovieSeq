@@ -1,0 +1,25 @@
+{
+  "without_local_mixer": {
+    "test_samples": 6034,
+    "best_epoch": 12,
+    "test_metrics": {
+      "auc": 0.8717452528973756,
+      "hr@10": 0.5757374875704342,
+      "ndcg@10": 0.31522409474174035,
+      "sampled_auc": 0.8639973244368339,
+      "uauc": 0.8645704809286899
+    }
+  },
+  "with_local_mixer": {
+    "test_samples": 6034,
+    "best_epoch": 12,
+    "test_metrics": {
+      "auc": 0.8814902678600954,
+      "hr@10": 0.6087172688100763,
+      "ndcg@10": 0.34002795186230866,
+      "sampled_auc": 0.8750165510066977,
+      "uauc": 0.8753066976127322
+    }
+  },
+  "note": "Archived measurements from an earlier experiment; the lightweight model in this repository has not reproduced these numbers."
+}
