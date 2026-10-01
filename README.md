@@ -1,30 +1,68 @@
-# MixFormer 序列推荐复现
+# MovieSeq
 
-这个仓库提供一个独立编写的轻量实现，用隐式反馈预测用户是否会选择候选物品。模型把全局自注意力、局部卷积和候选物品注意力结合起来。输入是历史物品 ID 和候选物品 ID，输出为一个分数。
+MovieSeq is a compact movie recommendation project built around candidate-aware sequence modeling. Given a user's viewing history and a candidate movie, it predicts a relevance score for that candidate. The repository includes MovieLens-1M preprocessing, a PyTorch model, a training command, and small tests.
 
-## 运行
+## Method
 
-需要 Python 3.9 及以上版本和 PyTorch。安装依赖后，可以先跑合成数据，确认训练流程可用。
+The model combines three views of the interaction history.
+
+1. **Global context.** Item and position embeddings enter multi-head self-attention so each history item can use information from the full sequence.
+2. **Local context.** A depthwise convolution with a three-item window captures nearby transitions. A learned gate combines local and global representations at each position.
+3. **Candidate-aware pooling.** The candidate embedding attends to the mixed history. An MLP scores the candidate together with the resulting history vector.
+
+Training uses binary cross-entropy on positive and sampled negative user-candidate pairs. Zero is reserved for padding, and padding positions are masked during attention and pooling. The core implementation is in [`src/mixformer/model.py`](src/mixformer/model.py).
+
+## Data flow
+
+`ratings.dat` → chronological positive interactions → history/candidate pairs → negative sampling → JSONL → model training
+
+The MovieLens converter keeps ratings of at least 4, maps movie IDs to positive integers, and creates a training pair for each positive interaction after a user's first one. Each pair uses only earlier positive interactions as its history. Negatives are sampled from movies the user never rated positively. The converter defaults to one negative per positive pair and a maximum history of 50 items.
+
+Each JSONL record has this shape:
+
+```json
+{"history": [1, 8, 23], "candidate": 42, "label": 1}
+```
+
+## Quick start
+
+Use Python 3.9 or newer. The commands below run from the repository root.
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements.txt
-PYTHONPATH=src python -m mixformer.train examples/demo.jsonl --epochs 1 --dim 16 --heads 2
-PYTHONPATH=src python -m unittest discover -s tests -v
+
+PYTHONPATH=src python -m mixformer.train examples/demo.jsonl \
+  --epochs 1 --dim 16 --heads 2 --output runs/demo
 ```
 
-使用 MovieLens-1M 时，先取得 `ratings.dat`，再生成训练样本。原始数据和模型权重均不进入版本库。
+The demo data is synthetic and only checks that the training path runs. `runs/demo/` contains `model.pt` and `metrics.json`.
+
+To prepare MovieLens-1M, place its `ratings.dat` at `data/ml-1m/ratings.dat`, then run:
 
 ```bash
-PYTHONPATH=src python -m mixformer.prepare data/ml-1m/ratings.dat data/train.jsonl
-PYTHONPATH=src python -m mixformer.train data/train.jsonl --output runs/ml1m
+PYTHONPATH=src python -m mixformer.prepare \
+  data/ml-1m/ratings.dat data/train.jsonl
+PYTHONPATH=src python -m mixformer.train \
+  data/train.jsonl --epochs 5 --output runs/ml1m
 ```
 
-`prepare` 保留评分不低于 4 的交互，按时间构造历史与正样本，并从用户未交互物品中抽取负样本。物品 ID 会重新映射为从 1 开始的整数，0 用于填充。训练入口接受每行一个 JSON 对象，字段为 `history`、`candidate` 和 `label`。
+Raw data, generated JSONL, and checkpoints are excluded from Git. The training command currently reports training loss. It does not create a held-out split or compute ranking metrics.
 
-## 范围
+## Repository layout
 
-这个版本用于验证模型和数据流程。它没有复现工业规模训练设置，也没有把旧实验的数值当作当前代码的结果。训练输出包含损失和权重，正式评估需要在独立测试集上另行执行。
+| Path | Purpose |
+| --- | --- |
+| `src/mixformer/prepare.py` | Convert MovieLens ratings to implicit-feedback examples |
+| `src/mixformer/model.py` | Global and local history mixing with candidate-aware scoring |
+| `src/mixformer/train.py` | Train the model and save a checkpoint and loss report |
+| `analysis/` | Offline scripts for inspecting earlier experiment outputs |
+| `results/` | A small historical ablation summary |
+| `tests/` | Padding, model, preprocessing, and training checks |
 
-`results/historical_ablation.json` 仅保存先前实验的指标摘要。该文件中的指标尚未用本仓库代码重新得到。
+The historical metrics in `results/` came from an earlier experiment and have not been reproduced with the current code. This repository is a small-scale implementation; it does not reproduce the paper's industrial feature set or serving system.
 
-`analysis/` 保存两份独立编写的旧实验统计脚本。它们读取既有实验输出，其中 `summarize_evidence.py` 需要 NumPy。
+## Paper
+
+[MixFormer: Co-Scaling Up Dense and Sequence in Industrial Recommenders](https://arxiv.org/abs/2602.14110)
